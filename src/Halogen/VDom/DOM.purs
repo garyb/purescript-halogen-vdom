@@ -10,7 +10,7 @@ module Halogen.VDom.DOM
   ) where
 
 import Prelude
-import Control.Monad.Eff (Eff, foreachE)
+import Effect (Effect, foreachE)
 
 import Data.Array as Array
 import Data.Function.Uncurried as Fn
@@ -18,27 +18,25 @@ import Data.Maybe (Maybe(..))
 import Data.Nullable (toNullable)
 import Data.Tuple (Tuple(..), fst)
 
-import DOM (DOM)
-import DOM.Node.Types (Element, Node, Document, elementToNode) as DOM
+import Web.DOM (Element, Node, Document) as DOM
+import Web.DOM.Element as Element
 
 import Halogen.VDom.Machine (Step(..), Machine)
 import Halogen.VDom.Machine as Machine
 import Halogen.VDom.Types (VDom(..), ElemSpec(..), Namespace(..), runGraft)
 import Halogen.VDom.Util as Util
 
-type VDomMachine eff a b = Machine (Eff eff) a b
+type VDomMachine a b = Machine Effect a b
 
-type VDomStep eff a b = Eff eff (Step (Eff eff) a b)
+type VDomStep a b = Effect (Step Effect a b)
 
 -- | Widget machines recursively reference the configured spec to potentially
 -- | enable recursive trees of Widgets.
-newtype VDomSpec eff a w = VDomSpec
-  { buildWidget ∷ VDomSpec eff a w → VDomMachine eff w DOM.Node
-  , buildAttributes ∷ DOM.Element → VDomMachine eff a Unit
+newtype VDomSpec a w = VDomSpec
+  { buildWidget ∷ VDomSpec a w → VDomMachine w DOM.Node
+  , buildAttributes ∷ DOM.Element → VDomMachine a Unit
   , document ∷ DOM.Document
   }
-
-type VDomEffects eff = (dom ∷ DOM | eff)
 
 -- | Starts an initial `VDom` machine by providing a `VDomSpec`.
 -- |
@@ -50,9 +48,9 @@ type VDomEffects eff = (dom ∷ DOM | eff)
 -- |   ...
 -- | ````
 buildVDom
-  ∷ ∀ eff a w
-  . VDomSpec (VDomEffects eff) a w
-  → VDomMachine (VDomEffects eff) (VDom a w) DOM.Node
+  ∷ ∀ a w
+  . VDomSpec a w
+  → VDomMachine (VDom a w) DOM.Node
 buildVDom spec = render
   where
   render = case _ of
@@ -63,10 +61,10 @@ buildVDom spec = render
     Grafted g → buildVDom spec (runGraft g)
 
 buildText
-  ∷ ∀ eff a w
-  . VDomSpec (VDomEffects eff) a w
+  ∷ ∀ a w
+  . VDomSpec a w
   → String
-  → VDomStep (VDomEffects eff) (VDom a w) DOM.Node
+  → VDomStep (VDom a w) DOM.Node
 buildText (VDomSpec spec) = render
   where
   render s = do
@@ -92,17 +90,17 @@ buildText (VDomSpec spec) = render
     Fn.runFn2 Util.removeChild node parent
 
 buildElem
-  ∷ ∀ eff a w
-  . VDomSpec (VDomEffects eff) a w
+  ∷ ∀ a w
+  . VDomSpec a w
   → ElemSpec a
   → Array (VDom a w)
-  → VDomStep (VDomEffects eff) (VDom a w) DOM.Node
+  → VDomStep (VDom a w) DOM.Node
 buildElem (VDomSpec spec) = render
   where
   render es1@(ElemSpec ns1 name1 as1) ch1 = do
     el ← Fn.runFn3 Util.createElement (toNullable ns1) name1 spec.document
     let
-      node = DOM.elementToNode el
+      node = Element.toNode el
       onChild = Fn.mkFn2 \ix child → do
         res@Step n m h ← buildVDom (VDomSpec spec) child
         Fn.runFn3 Util.insertChildIx ix n node
@@ -153,17 +151,17 @@ buildElem (VDomSpec spec) = render
     Machine.halt attrs
 
 buildKeyed
-  ∷ ∀ eff a w
-  . VDomSpec (VDomEffects eff) a w
+  ∷ ∀ a w
+  . VDomSpec a w
   → ElemSpec a
   → Array (Tuple String (VDom a w))
-  → VDomStep (VDomEffects eff) (VDom a w) DOM.Node
+  → VDomStep (VDom a w) DOM.Node
 buildKeyed (VDomSpec spec) = render
   where
   render es1@(ElemSpec ns1 name1 as1) ch1 = do
     el ← Fn.runFn3 Util.createElement (toNullable ns1) name1 spec.document
     let
-      node = DOM.elementToNode el
+      node = Element.toNode el
       onChild = Fn.mkFn3 \k ix (Tuple _ vdom) → do
         res@Step n m h ← buildVDom (VDomSpec spec) vdom
         Fn.runFn3 Util.insertChildIx ix n node
@@ -214,10 +212,10 @@ buildKeyed (VDomSpec spec) = render
     Machine.halt attrs
 
 buildWidget
-  ∷ ∀ eff a w
-  . VDomSpec (VDomEffects eff) a w
+  ∷ ∀ a w
+  . VDomSpec a w
   → w
-  → VDomStep (VDomEffects eff) (VDom a w) DOM.Node
+  → VDomStep (VDom a w) DOM.Node
 buildWidget (VDomSpec spec) = render
   where
   render w = do

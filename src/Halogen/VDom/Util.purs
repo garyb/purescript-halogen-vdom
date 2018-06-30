@@ -1,7 +1,6 @@
 module Halogen.VDom.Util
   ( effPure
   , effUnit
-  , MutStrMap
   , newMutMap
   , pokeMutMap
   , deleteMutMap
@@ -33,41 +32,37 @@ module Halogen.VDom.Util
   ) where
 
 import Prelude
-import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.Ref (REF)
+import Effect (Effect)
 import Data.Function.Uncurried as Fn
 import Data.Nullable (Nullable)
-import Data.StrMap (StrMap)
-import Data.StrMap as StrMap
-import Data.StrMap.ST (STStrMap)
-import Data.StrMap.ST as STStrMap
-import DOM (DOM)
-import DOM.Event.EventTarget (EventListener) as DOM
-import DOM.Node.Types (Document, Element, Node) as DOM
+import Foreign.Object (Object)
+import Foreign.Object as Object
+import Foreign.Object.ST (STObject)
+import Foreign.Object.ST as STObject
+import Web.Event.EventTarget (EventListener) as DOM
+import Web.DOM (Document, Element, Node) as DOM
 import Halogen.VDom.Types (Namespace, ElemName)
 import Unsafe.Coerce (unsafeCoerce)
 
-effPure ∷ ∀ eff a. a → Eff eff a
+effPure ∷ ∀ a. a → Effect a
 effPure = pure
 
-effUnit ∷ ∀ eff. Eff eff Unit
+effUnit ∷ Effect Unit
 effUnit = pure unit
 
-type MutStrMap = STStrMap Void
+newMutMap ∷ ∀ r a. Effect (STObject r a)
+newMutMap = unsafeCoerce STObject.new
 
-newMutMap ∷ ∀ eff a. Eff (ref ∷ REF | eff) (MutStrMap a)
-newMutMap = unsafeCoerce STStrMap.new
-
-pokeMutMap ∷ ∀ eff a. Fn.Fn3 String a (MutStrMap a) (Eff (ref ∷ REF | eff) Unit)
+pokeMutMap ∷ ∀ r a. Fn.Fn3 String a (STObject r a) (Effect Unit)
 pokeMutMap = unsafeSetAny
 
-deleteMutMap ∷ ∀ eff a. Fn.Fn2 String (MutStrMap a) (Eff (ref ∷ REF | eff) Unit)
+deleteMutMap ∷ ∀ r a. Fn.Fn2 String (STObject r a) (Effect Unit)
 deleteMutMap = unsafeDeleteAny
 
-unsafeFreeze ∷ ∀ a. MutStrMap a → StrMap a
+unsafeFreeze ∷ ∀ r a. STObject r a → Object a
 unsafeFreeze = unsafeCoerce
 
-unsafeLookup ∷ ∀ a. Fn.Fn2 String (StrMap a) a
+unsafeLookup ∷ ∀ a. Fn.Fn2 String (Object a) a
 unsafeLookup = unsafeGetAny
 
 foreign import unsafeGetAny
@@ -77,98 +72,93 @@ foreign import unsafeHasAny
   ∷ ∀ a. Fn.Fn2 String a Boolean
 
 foreign import unsafeSetAny
-  ∷ ∀ eff a b. Fn.Fn3 String a b (Eff eff Unit)
+  ∷ ∀ a b. Fn.Fn3 String a b (Effect Unit)
 
 foreign import unsafeDeleteAny
-  ∷ ∀ eff a. Fn.Fn2 String a (Eff eff Unit)
+  ∷ ∀ a. Fn.Fn2 String a (Effect Unit)
 
 foreign import forE
-  ∷ ∀ eff a b
+  ∷ ∀ a b
   . Fn.Fn2
       (Array a)
-      (Fn.Fn2 Int a (Eff eff b))
-      (Eff eff (Array b))
+      (Fn.Fn2 Int a (Effect b))
+      (Effect (Array b))
 
 foreign import forInE
-  ∷ ∀ eff a
+  ∷ ∀ a
   . Fn.Fn2
-      (StrMap.StrMap a)
-      (Fn.Fn2 String a (Eff eff Unit))
-      (Eff eff Unit)
+      (Object.Object a)
+      (Fn.Fn2 String a (Effect Unit))
+      (Effect Unit)
 
 foreign import replicateE
-  ∷ ∀ eff a
+  ∷ ∀ a
   . Fn.Fn2
       Int
-      (Eff eff a)
-      (Eff eff Unit)
+      (Effect a)
+      (Effect Unit)
 
 foreign import diffWithIxE
-  ∷ ∀ eff b c d
+  ∷ ∀ b c d
   . Fn.Fn5
       (Array b)
       (Array c)
-      (Fn.Fn3 Int b c (Eff eff d))
-      (Fn.Fn2 Int b (Eff eff Unit))
-      (Fn.Fn2 Int c (Eff eff d))
-      (Eff eff (Array d))
+      (Fn.Fn3 Int b c (Effect d))
+      (Fn.Fn2 Int b (Effect Unit))
+      (Fn.Fn2 Int c (Effect d))
+      (Effect (Array d))
 
 foreign import diffWithKeyAndIxE
-  ∷ ∀ eff a b c d
+  ∷ ∀ a b c d
   . Fn.Fn6
-      (StrMap.StrMap a)
+      (Object.Object a)
       (Array b)
       (b → String)
-      (Fn.Fn4 String Int a b (Eff eff c))
-      (Fn.Fn2 String a (Eff eff d))
-      (Fn.Fn3 String Int b (Eff eff c))
-      (Eff eff (StrMap.StrMap c))
+      (Fn.Fn4 String Int a b (Effect c))
+      (Fn.Fn2 String a (Effect d))
+      (Fn.Fn3 String Int b (Effect c))
+      (Effect (Object.Object c))
 
 foreign import strMapWithIxE
-  ∷ ∀ eff a b
+  ∷ ∀ a b
   . Fn.Fn3
       (Array a)
       (a → String)
-      (Fn.Fn3 String Int a (Eff eff b))
-      (Eff eff (StrMap.StrMap b))
+      (Fn.Fn3 String Int a (Effect b))
+      (Effect (Object.Object b))
 
 foreign import refEq
   ∷ ∀ a b. Fn.Fn2 a b Boolean
 
 foreign import createTextNode
-  ∷ ∀ eff
-  . Fn.Fn2 String DOM.Document (Eff (dom ∷ DOM | eff) DOM.Node)
+  ∷ Fn.Fn2 String DOM.Document (Effect DOM.Node)
 
 foreign import setTextContent
-  ∷ ∀ eff
-  . Fn.Fn2 String DOM.Node (Eff (dom ∷ DOM | eff) Unit)
+  ∷ Fn.Fn2 String DOM.Node (Effect Unit)
 
 foreign import createElement
-  ∷ ∀ eff
-  . Fn.Fn3 (Nullable Namespace) ElemName DOM.Document (Eff (dom ∷ DOM | eff) DOM.Element)
+  ∷ Fn.Fn3 (Nullable Namespace) ElemName DOM.Document (Effect DOM.Element)
 
 foreign import insertChildIx
-  ∷ ∀ eff
-  . Fn.Fn3 Int DOM.Node DOM.Node (Eff (dom ∷ DOM | eff) Unit)
+  ∷ Fn.Fn3 Int DOM.Node DOM.Node (Effect Unit)
 
 foreign import removeChild
-  ∷ ∀ eff
-  . Fn.Fn2 DOM.Node DOM.Node (Eff (dom ∷ DOM | eff) Unit)
+  ∷ Fn.Fn2 DOM.Node DOM.Node (Effect Unit)
 
 foreign import unsafeParent
   ∷ DOM.Node → DOM.Node
 
 foreign import setAttribute
-  ∷ ∀ eff. Fn.Fn4 (Nullable Namespace) String String DOM.Element (Eff (dom ∷ DOM | eff) Unit)
+  ∷ Fn.Fn4 (Nullable Namespace) String String DOM.Element (Effect Unit)
 
 foreign import removeAttribute
-  ∷ ∀ eff. Fn.Fn3 (Nullable Namespace) String DOM.Element (Eff (dom ∷ DOM | eff) Unit)
+  ∷ Fn.Fn3 (Nullable Namespace) String DOM.Element (Effect Unit)
 
 foreign import addEventListener
-  ∷ ∀ eff. Fn.Fn3 String (DOM.EventListener (dom ∷ DOM | eff)) DOM.Element (Eff (dom ∷ DOM | eff) Unit)
+  ∷ Fn.Fn3 String DOM.EventListener DOM.Element (Effect Unit)
 
 foreign import removeEventListener
-  ∷ ∀ eff. Fn.Fn3 String (DOM.EventListener (dom ∷ DOM | eff)) DOM.Element (Eff (dom ∷ DOM | eff) Unit)
+  ∷ Fn.Fn3 String DOM.EventListener DOM.Element (Effect Unit)
 
 foreign import data JsUndefined ∷ Type
 
